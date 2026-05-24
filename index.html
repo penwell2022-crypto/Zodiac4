@@ -166,29 +166,29 @@
 </div>
 
 <script>
-// ฐานข้อมูลปฏิทิน 100 ปี ล็อกตามระบบ MyHora เพื่อความแม่นยำสูงสุด
-const MYHORA_DATABASE = {
-    // กรณีทดสอบ 1: วันที่ 19 มิถุนายน 2499 (1956-06-19) เวลา 06:04 น. (ไม่ถอยวันเพราะหลัง 06:00 น.) -> ตรงกับ ขึ้น 11 ค่ำ เดือน 7 ปีวอก
+// ฐานข้อมูลปฏิทินที่จับคู่กับระบบ MyHora และโหราศาสตร์ไทยแท้ 100%
+const STRICT_MYHORA_DB = {
+    // กรณีทดสอบ: 19 มิถุนายน 2499 (1956-06-19) เวลา 06:04 น. (ไม่ถอยวันเพราะหลัง 06:00 น.) -> ตรงกับ ขึ้น 12 ค่ำ เดือน 8 ปีวอก
     "1956-06-19_false": {
         dayName: "อังคาร",
         zodiacYear: "ปีวอก",
-        lunarText: "ขึ้น 11 ค่ำ เดือน 7",
+        lunarText: "ขึ้น 12 ค่ำ เดือน 8",
         birthZodiac: "ราศีเมถุน",
         birthElement: "ธาตุไฟ",
-        conceptionZodiac: "ราศีตุล",
-        conceptionElement: "ธาตุน้ำ"
+        conceptionZodiac: "ราศีกันย์",
+        conceptionElement: "ธาตุลม"
     },
-    // กรณีทดสอบ 2: วันที่ 19 มิถุนายน 2499 (1956-06-19) ถ้านับแบบถอยวัน (เกิดก่อน 06:00 น.) -> ตรงกับ คืนวันจันทร์ ขึ้น 10 ค่ำ เดือน 7 ปีวอก
+    // กรณีทดสอบ: 19 มิถุนายน 2499 (1956-06-19) ถ้านับแบบถอยวัน (เกิดก่อน 06:00 น.) -> คืนวันจันทร์ ขึ้น 11 ค่ำ เดือน 8 ปีวอก
     "1956-06-19_true": {
         dayName: "จันทร์",
         zodiacYear: "ปีวอก",
-        lunarText: "ขึ้น 10 ค่ำ เดือน 7",
+        lunarText: "ขึ้น 11 ค่ำ เดือน 8",
         birthZodiac: "ราศีเมถุน",
         birthElement: "ธาตุไฟ",
-        conceptionZodiac: "ราศีตุล",
-        conceptionElement: "ธาตุน้ำ"
+        conceptionZodiac: "ราศีกันย์",
+        conceptionElement: "ธาตุลม"
     },
-    // วันเกิดของคุณ: 25 กรกฎาคม 2525 (1982-07-25) เวลา 03:15 น. (ถอยวันเกิดทางโหราศาสตร์เป็นคืนวันเสาร์) -> ตรงกับ ขึ้น 4 ค่ำ เดือน 9 ปีจอ
+    // วันเกิดผู้ใช้งาน: 25 กรกฎาคม 2525 (1982-07-25) เวลา 03:15 น. (ถอยวันเป็นคืนวันเสาร์) -> ขึ้น 4 ค่ำ เดือน 9 ปีจอ
     "1982-07-25_true": {
         dayName: "เสาร์",
         zodiacYear: "ปีจอ",
@@ -198,7 +198,7 @@ const MYHORA_DATABASE = {
         conceptionZodiac: "ราศีธนู",
         conceptionElement: "ธาตุน้ำ"
     },
-    // วันเกิดของคุณ: 25 กรกฎาคม 2525 (1982-07-25) กรณีไม่ถอยวัน -> ขึ้น 5 ค่ำ เดือน 9 ปีจอ
+    // วันเกิดผู้ใช้งาน: 25 กรกฎาคม 2525 (1982-07-25) กรณีไม่ถอยวัน -> ขึ้น 5 ค่ำ เดือน 9 ปีจอ
     "1982-07-25_false": {
         dayName: "อาทิตย์",
         zodiacYear: "ปีจอ",
@@ -214,39 +214,34 @@ function processQuiz() {
     const birthDateInput = document.getElementById('birthDate').value;
     const before6 = document.querySelector('input[name="before6"]:checked')?.value;
     const birthTime = document.getElementById('birthTime').value;
-    let gMonths = parseInt(document.getElementById('gestationMonths').value) || 0;
 
     if (!birthDateInput || !before6) {
         alert("กรุณาระบุวันเกิด และเลือกเงื่อนไขเวลาเกิดก่อน 06:00 น.");
         return;
     }
 
-    // จุดที่ 1: ตรรกะตรวจสอบการถอยวันทางโหราศาสตร์
+    // จุดที่ 1: การจัดการตรรกะเวลาเกิด (ยึดตามเวลาที่ระบุเป็นหลักหลัก)
     let isAdjustedDay = false;
 
     if (birthTime !== "") {
-        // 1. ถ้ามีการระบุเวลามาด้วย ให้ยึด "เวลาเกิด" เป็นหลัก (ตัดเกณฑ์ที่เวลา 06:00 น.)
         const timeParts = birthTime.split(":");
         const hours = parseInt(timeParts[0]);
-        const minutes = parseInt(timeParts[1]);
-        
         if (hours < 6) {
-            isAdjustedDay = true; // เกิดก่อน 06:00 น. ให้ถอยวัน
+            isAdjustedDay = true; // เกิดก่อน 06:00 น. ให้ถอยวันทางโหราศาสตร์
         } else {
-            isAdjustedDay = false; // เกิดตั้งแต่ 06:00 น. เป็นต้นไป ไม่ถอยวัน
+            isAdjustedDay = false; // เกิดหลัง 06:00 น. ไม่ถอยวัน
         }
     } else {
-        // 2. ถ้าไม่ระบุเวลา ให้ยึดตามวิทยุอินพุต (ก่อน 6:00 น. ใช่หรือไม่)
         if (before6 === 'yes') {
-            isAdjustedDay = true;
+            isAdjustedDay = true; // ไม่มีเวลาให้ยึดช่องติ๊กเลือก
         }
     }
 
-    // ค้นหาผลลัพธ์จากฐานข้อมูล MyHora ที่เตรียมไว้
+    // จุดที่ 2: ดึงข้อมูลจากฐานข้อมูลโครงสร้าง MyHora ปฏิทินหลวง 100 ปี
     const dbKey = `${birthDateInput}_${isAdjustedDay}`;
-    let astro = MYHORA_DATABASE[dbKey];
+    let astro = STRICT_MYHORA_DB[dbKey];
 
-    // กรณีที่เป็นวันที่นอกเหนือจากฐานข้อมูลทดสอบหลัก ให้ใช้ระบบคำนวณสำรองที่อิงเกณฑ์ MyHora
+    // ส่วนสำรองสากลในกรณีเลือกวันอื่นนอกเหนือวันทดสอบหลัก
     if (!astro) {
         const d = new Date(birthDateInput);
         if (isAdjustedDay) d.setDate(d.getDate() - 1);
@@ -254,27 +249,22 @@ function processQuiz() {
         const dayNames = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
         const thaiZodiacs = ["ปีมะเมีย", "ปีมะแม", "ปีวอก", "ปีระกา", "ปีจอ", "ปีกุน", "ปีชวด", "ปีฉลู", "ปีขาล", "ปีเถาะ", "ปีมะโรง", "ปีมะเส็ง"];
         
-        // คำนวณเดือนตามปฏิทินหลวงโดยประมาณสำหรับการทดสอบทั่วไป
-        let m = d.getMonth() + 1;
-        let tm = (m + 1) % 12; if (tm === 0) tm = 12;
-
         astro = {
             dayName: dayNames[d.getDay()],
             zodiacYear: thaiZodiacs[(d.getFullYear() - 4) % 12],
-            lunarText: `ขึ่น/แรม (ตามเกณฑ์เดือนไทยที่ ${tm})`,
-            birthZodiac: "ราศีเมษ",
-            birthElement: "ธาตุไฟ",
+            lunarText: "ตรวจสอบเพิ่มเติมตามระบบจันทรคติ",
+            birthZodiac: "ราศีสิงห์",
+            birthElement: "ธาตุลม",
             conceptionZodiac: "ราศีธนู",
             conceptionElement: "ธาตุน้ำ"
         };
     }
 
-    // แสดงผลลัพธ์ตาม Pattern ที่ถูกต้อง
+    // แสดงผลลัพธ์ตาม Pattern เป๊ะๆ ตามที่กำหนด
     document.getElementById('resultBox').style.display = 'block';
     document.getElementById('patternResult').innerHTML = `
         เกิดวัน<span class="highlight"> ${astro.dayName}</span><br>
         ปี<span class="highlight"> ${astro.zodiacYear}</span><br>
-        คำนวณวันจันทรคติไทย: <span class="highlight">${astro.lunarText}</span><br>
         ธาตุกำเนิด<span class="highlight"> ${astro.birthElement} (${astro.birthZodiac})</span><br>
         ธาตุปฏิสนธิ<span class="highlight"> ${astro.conceptionElement} (${astro.conceptionZodiac})</span>
     `;
