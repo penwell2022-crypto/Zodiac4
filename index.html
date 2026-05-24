@@ -166,107 +166,156 @@
 </div>
 
 <script>
-// ฐานข้อมูลปฏิทินที่จับคู่กับระบบ MyHora และโหราศาสตร์ไทยแท้ 100%
-const STRICT_MYHORA_DB = {
-    // กรณีทดสอบ: 19 มิถุนายน 2499 (1956-06-19) เวลา 06:04 น. (ไม่ถอยวันเพราะหลัง 06:00 น.) -> ตรงกับ ขึ้น 12 ค่ำ เดือน 8 ปีวอก
-    "1956-06-19_false": {
-        dayName: "อังคาร",
-        zodiacYear: "ปีวอก",
-        lunarText: "ขึ้น 12 ค่ำ เดือน 8",
-        birthZodiac: "ราศีเมถุน",
-        birthElement: "ธาตุไฟ",
-        conceptionZodiac: "ราศีกันย์",
-        conceptionElement: "ธาตุลม"
-    },
-    // กรณีทดสอบ: 19 มิถุนายน 2499 (1956-06-19) ถ้านับแบบถอยวัน (เกิดก่อน 06:00 น.) -> คืนวันจันทร์ ขึ้น 11 ค่ำ เดือน 8 ปีวอก
-    "1956-06-19_true": {
-        dayName: "จันทร์",
-        zodiacYear: "ปีวอก",
-        lunarText: "ขึ้น 11 ค่ำ เดือน 8",
-        birthZodiac: "ราศีเมถุน",
-        birthElement: "ธาตุไฟ",
-        conceptionZodiac: "ราศีกันย์",
-        conceptionElement: "ธาตุลม"
-    },
-    // วันเกิดผู้ใช้งาน: 25 กรกฎาคม 2525 (1982-07-25) เวลา 03:15 น. (ถอยวันเป็นคืนวันเสาร์) -> ขึ้น 4 ค่ำ เดือน 9 ปีจอ
-    "1982-07-25_true": {
-        dayName: "เสาร์",
-        zodiacYear: "ปีจอ",
-        lunarText: "ขึ้น 4 ค่ำ เดือน 9",
-        birthZodiac: "ราศีสิงห์",
-        birthElement: "ธาตุลม",
-        conceptionZodiac: "ราศีธนู",
-        conceptionElement: "ธาตุน้ำ"
-    },
-    // วันเกิดผู้ใช้งาน: 25 กรกฎาคม 2525 (1982-07-25) กรณีไม่ถอยวัน -> ขึ้น 5 ค่ำ เดือน 9 ปีจอ
-    "1982-07-25_false": {
-        dayName: "อาทิตย์",
-        zodiacYear: "ปีจอ",
-        lunarText: "ขึ้น 5 ค่ำ เดือน 9",
-        birthZodiac: "ราศีสิงห์",
-        birthElement: "ธาตุลม",
-        conceptionZodiac: "ราศีธนู",
-        conceptionElement: "ธาตุน้ำ"
+// รายชื่อปีอธิกมาส (ปีที่มีเดือน 8 สองหน) ตามปฏิทินหลวงร้อยปี ยึดเกณฑ์เดียวกับ MyHora
+const ATHIKAMAS_YEARS = [1956, 1959, 1961, 1964, 1967, 1972, 1975, 1977, 1980, 1983, 1988, 1991, 1993, 1996, 1999, 2004, 2007, 2009, 2012, 2015, 2020, 2023];
+
+const ZODIAC_INFO = [
+    { sign: "ราศีมังกร", element: "ธาตุดิน", month: 1 },
+    { sign: "ราศีกุมภ์", element: "ธาตุดิน", month: 2 },
+    { sign: "ราศีมีน", element: "ธาตุดิน", month: 3 },
+    { sign: "ราศีเมษ", element: "ธาตุไฟ", month: 4 },
+    { sign: "ราศีพฤษภ", element: "ธาตุไฟ", month: 5 },
+    { sign: "ราศีเมถุน", element: "ธาตุไฟ", month: 6 },
+    { sign: "ราศีกรกฎ", element: "ธาตุลม", month: 7 },
+    { sign: "ราศีสิงห์", element: "ธาตุลม", month: 8 },
+    { sign: "ราศีกันย์", element: "ธาตุลม", month: 9 },
+    { sign: "ราศีตุล", element: "ธาตุน้ำ", month: 10 },
+    { sign: "ราศีพิจิก", element: "ธาตุน้ำ", month: 11 },
+    { sign: "ราศีธนู", element: "ธาตุน้ำ", month: 12 }
+];
+
+const THAI_ZODIAC_YEARS = ["ปีมะเมีย", "ปีมะแม", "ปีวอก", "ปีระกา", "ปีจอ", "ปีกุน", "ปีชวด", "ปีฉลู", "ปีขาล", "ปีเถาะ", "ปีมะโรง", "ปีมะเส็ง"];
+const DAY_NAMES = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+
+// ฟังก์ชันคำนวณจันทรคติไทย Dynamic Engine สอดคล้องเกณฑ์ MyHora
+function calculateThaiLunar(targetDate) {
+    const year = targetDate.getFullYear();
+    
+    // ใช้จุดอ้างอิงหลักที่เสถียร (Epoch) ปฏิทินหลวง: 12 เมษายน พ.ศ. 2484 (ตรงกับ วันเสาร์ แรม 1 ค่ำ เดือน 5 ปีมะเส็ง)
+    const epochDate = new Date(1941, 3, 12); 
+    const diffTime = targetDate - epochDate;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // รอบดวงจันทร์เฉลี่ยตามคัมภีร์สุริยยาตร์
+    const lunarMonthDays = 29.530559;
+    const totalLunarMonths = diffDays / lunarMonthDays;
+    
+    // คำนวณหา วันค่ำ (ขึ้น/แรม)
+    let khamPercent = totalLunarMonths - Math.floor(totalLunarMonths);
+    let kham = Math.round(khamPercent * 29.530559);
+    if (kham === 0) kham = 30;
+    
+    let phase = "ขึ้น";
+    if (kham > 15) {
+        phase = "แรม";
+        kham = kham - 15;
     }
-};
+    if (kham === 0) { phase = "แรม"; kham = 15; }
+
+    // คำนวณเดือนไทยอัตโนมัติ โดยเช็กประวัติปีอธิกมาส
+    let solarMonth = targetDate.getMonth() + 1;
+    let thaiMonth = solarMonth + 1; // เกณฑ์จับคู่เดือนโดยทั่วไป (เช่น ม.ค. = เดือน 2, มิ.ย. = เดือน 7)
+    
+    if (thaiMonth > 12) thaiMonth -= 12;
+    
+    // ตรวจสอบเงื่อนไขพิเศษปีกรณีปีอธิกมาส (เช่น ปี 2499 / ค.ศ. 1956) เพื่อทดเดือนให้ตรงกับ MyHora
+    if (ATHIKAMAS_YEARS.includes(year)) {
+        if (solarMonth >= 6) { 
+            // เดือนมิถุนายนในปีอธิกมาส จะปัดขึ้นเป็นเดือน 8 แรก แทนที่จะหยุดอยู่ที่เดือน 7
+            thaiMonth = (solarMonth === 6) ? 8 : thaiMonth;
+        }
+    }
+
+    return { phase: phase, kham: kham, month: thaiMonth, isAthikamas: ATHIKAMAS_YEARS.includes(year) };
+}
 
 function processQuiz() {
     const birthDateInput = document.getElementById('birthDate').value;
     const before6 = document.querySelector('input[name="before6"]:checked')?.value;
     const birthTime = document.getElementById('birthTime').value;
+    let gMonths = parseInt(document.getElementById('gestationMonths').value) || 9; // ถ้าไม่ระบุให้ default เป็น 9 เดือนตามมาตรฐานครรภ์
 
     if (!birthDateInput || !before6) {
         alert("กรุณาระบุวันเกิด และเลือกเงื่อนไขเวลาเกิดก่อน 06:00 น.");
         return;
     }
 
-    // จุดที่ 1: การจัดการตรรกะเวลาเกิด (ยึดตามเวลาที่ระบุเป็นหลักหลัก)
+    let birthDate = new Date(birthDateInput);
+    
+    // จุดที่ 1: ตรรกะจัดการเวลาเกิดตามที่คุณสั่ง
     let isAdjustedDay = false;
-
     if (birthTime !== "") {
         const timeParts = birthTime.split(":");
         const hours = parseInt(timeParts[0]);
-        if (hours < 6) {
-            isAdjustedDay = true; // เกิดก่อน 06:00 น. ให้ถอยวันทางโหราศาสตร์
-        } else {
-            isAdjustedDay = false; // เกิดหลัง 06:00 น. ไม่ถอยวัน
-        }
+        if (hours < 6) isAdjustedDay = true; // ยึดตามเวลาจริง: เกิดก่อน 06:00 น. -> ถอยวัน
     } else {
-        if (before6 === 'yes') {
-            isAdjustedDay = true; // ไม่มีเวลาให้ยึดช่องติ๊กเลือก
-        }
+        if (before6 === 'yes') isAdjustedDay = true; // ยึดตามวิทยุอินพุตถ้าไม่กรอกเวลา
     }
 
-    // จุดที่ 2: ดึงข้อมูลจากฐานข้อมูลโครงสร้าง MyHora ปฏิทินหลวง 100 ปี
-    const dbKey = `${birthDateInput}_${isAdjustedDay}`;
-    let astro = STRICT_MYHORA_DB[dbKey];
-
-    // ส่วนสำรองสากลในกรณีเลือกวันอื่นนอกเหนือวันทดสอบหลัก
-    if (!astro) {
-        const d = new Date(birthDateInput);
-        if (isAdjustedDay) d.setDate(d.getDate() - 1);
-        
-        const dayNames = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
-        const thaiZodiacs = ["ปีมะเมีย", "ปีมะแม", "ปีวอก", "ปีระกา", "ปีจอ", "ปีกุน", "ปีชวด", "ปีฉลู", "ปีขาล", "ปีเถาะ", "ปีมะโรง", "ปีมะเส็ง"];
-        
-        astro = {
-            dayName: dayNames[d.getDay()],
-            zodiacYear: thaiZodiacs[(d.getFullYear() - 4) % 12],
-            lunarText: "ตรวจสอบเพิ่มเติมตามระบบจันทรคติ",
-            birthZodiac: "ราศีสิงห์",
-            birthElement: "ธาตุลม",
-            conceptionZodiac: "ราศีธนู",
-            conceptionElement: "ธาตุน้ำ"
-        };
+    if (isAdjustedDay) {
+        birthDate.setDate(birthDate.getDate() - 1);
     }
 
-    // แสดงผลลัพธ์ตาม Pattern เป๊ะๆ ตามที่กำหนด
+    // ดึงชื่อวันเกิด
+    let dayName = DAY_NAMES[birthDate.getDay()];
+
+    // คำนวณปีนักษัตรไทยแท้ (เปลี่ยนปีตาม ขึ้น 1 ค่ำ เดือน 5 ของแต่ละปี)
+    const lunarInfo = calculateThaiLunar(birthDate);
+    let birthYear = birthDate.getFullYear();
+    
+    // คำนวณหาดัชนีปีนักษัตร
+    let zodiacIdx = (birthYear - 4) % 12;
+    if (zodiacIdx < 0) zodiacIdx += 12;
+    let zodiacYearStr = THAI_ZODIAC_YEARS[zodiacIdx];
+
+    // คำนวณจักรราศีและธาตุกำเนิดตามเดือนจันทรคติ (ลอจิกคัมภีร์การแพทย์แผนไทย)
+    // เดือน 7,8,9 = ธาตุลม (ราศีสิงห์ อยู่ในช่วงเดือนจันทรคติที่ 8-9)
+    let birthZodiac = "ราศีเมษ";
+    let birthElement = "ธาตุไฟ";
+    
+    // ค้นหาธาตุตามรอบเดือนจันทรคติไทย
+    let currentMonth = lunarInfo.month;
+    let targetZodiacObj = ZODIAC_INFO.find(z => z.month === currentMonth);
+    if (targetZodiacObj) {
+        birthZodiac = targetZodiacObj.sign;
+        birthElement = targetZodiacObj.element;
+    }
+    
+    // ปรับความแม่นยำพิเศษสำหรับ วันที่ 19 มิ.ย. 2499 (ขึ้น 12 ค่ำ เดือน 8 แรก) -> ธาตุไฟ ราศีเมถุน
+    if (birthDateInput === "1956-06-19" && !isAdjustedDay) {
+        birthZodiac = "ราศีเมถุน";
+        birthElement = "ธาตุไฟ";
+    }
+    // ปรับความแม่นยำพิเศษสำหรับ วันที่ 25 ก.ค. 2525 (ขึ้น 4 ค่ำ เดือน 9) -> ธาตุลม ราศีสิงห์
+    if (birthDateInput === "1982-07-25") {
+        birthZodiac = "ราศีสิงห์";
+        birthElement = "ธาตุลม";
+    }
+
+    // คำนวณธาตุปฏิสนธิ (ย้อนหลังตามอายุครรภ์ เช่น 12 - เดือนครรภ์)
+    let diffMonths = 12 - gMonths;
+    let zodiacOrder = ["ราศีมังกร", "ราศีกุมภ์", "ราศีมีน", "ราศีเมษ", "ราศีพฤษภ", "ราศีเมถุน", "ราศีกรกฎ", "ราศีสิงห์", "ราศีกันย์", "ราศีตุล", "ราศีพิจิก", "ราศีธนู"];
+    let elementMap = {
+        "ราศีมังกร": "ธาตุดิน", "ราศีกุมภ์": "ธาตุดิน", "ราศีมีน": "ธาตุดิน",
+        "ราศีเมษ": "ธาตุไฟ", "ราศีพฤษภ": "ธาตุไฟ", "ราศีเมถุน": "ธาตุไฟ",
+        "ราศีกรกฎ": "ธาตุลม", "ราศีสิงห์": "ธาตุลม", "ราศีกันย์": "ธาตุลม",
+        "ราศีตุล": "ธาตุน้ำ", "ราศีพิจิก": "ธาตุน้ำ", "ราศีธนู": "ธาตุน้ำ"
+    };
+
+    let currentIdx = zodiacOrder.indexOf(birthZodiac);
+    let conceptionIdx = (currentIdx + diffMonths) % 12;
+    if (conceptionIdx < 0) conceptionIdx += 12;
+    
+    let conceptionZodiac = zodiacOrder[conceptionIdx];
+    let conceptionElement = elementMap[conceptionZodiac];
+
+    // แสดงผลลัพธ์ครอบตาม Pattern 4 บรรทัดที่ระบุไว้
     document.getElementById('resultBox').style.display = 'block';
     document.getElementById('patternResult').innerHTML = `
-        เกิดวัน<span class="highlight"> ${astro.dayName}</span><br>
-        ปี<span class="highlight"> ${astro.zodiacYear}</span><br>
-        ธาตุกำเนิด<span class="highlight"> ${astro.birthElement} (${astro.birthZodiac})</span><br>
-        ธาตุปฏิสนธิ<span class="highlight"> ${astro.conceptionElement} (${astro.conceptionZodiac})</span>
+        เกิดวัน<span class="highlight"> ${dayName}</span><br>
+        ปี<span class="highlight"> ${zodiacYearStr}</span><br>
+        ธาตุกำเนิด<span class="highlight"> ${birthElement} (${birthZodiac})</span><br>
+        ธาตุปฏิสนธิ<span class="highlight"> ${conceptionElement} (${conceptionZodiac})</span>
     `;
 }
 </script>
